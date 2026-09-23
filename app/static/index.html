@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>抗裁切水印实验台 · 分块 DCT 频域水印</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <h1>抗裁切水印实验台</h1>
+    <p class="sub">分块 DCT 频域嵌入 · 同步标记平铺 · 多数表决盲检测 · 抗 JPEG 重压与中心裁切</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ① 上传与嵌入 -->
+  <section class="card" id="step1">
+    <h2><span class="num">1</span> 上传图片并嵌入文本水印</h2>
+    <div class="grid-upload">
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept="image/*" hidden>
+        <div class="dz-inner">
+          <div class="dz-icon">🖼️</div>
+          <p><b>点击选择</b> 或拖拽图片到此处</p>
+          <p class="muted">PNG / JPEG / WEBP，长边 ≤ 2048，最短边 ≥ 128</p>
+        </div>
+      </div>
+      <div class="form">
+        <label>水印文本
+          <input type="text" id="wmText" maxlength="60"
+                 placeholder="例如：机密-2026-XYZ" value="机密-2026-XYZ">
+        </label>
+        <p class="muted hint" id="textHint"></p>
+        <label>嵌入强度
+          <div class="seg" id="strengthSeg">
+            <button type="button" data-v="1">弱（更隐形）</button>
+            <button type="button" data-v="2" class="active">中（推荐）</button>
+            <button type="button" data-v="3">强（更抗损）</button>
+          </div>
+        </label>
+        <button class="btn primary" id="embedBtn" disabled>嵌入水印</button>
+        <div id="embedMeta" class="meta-grid hidden"></div>
+      </div>
+    </div>
+    <div class="preview-row hidden" id="embedPreview">
+      <figure>
+        <figcaption>原图</figcaption>
+        <img id="origImg" alt="原图">
+      </figure>
+      <figure>
+        <figcaption>含水印图（PNG）
+          <a id="dlWm" class="dl" download>下载 PNG</a>
+        </figcaption>
+        <img id="wmImg" alt="含水印图">
+      </figure>
+    </div>
+  </section>
+
+  <!-- ② 攻击模拟 -->
+  <section class="card hidden" id="step2">
+    <h2><span class="num">2</span> 模拟传输损伤（JPEG 重压缩 / 中心裁切）</h2>
+    <div class="attack-controls">
+      <div class="slider-row">
+        <label>JPEG 重压缩质量 <b id="qVal">75</b></label>
+        <input type="range" id="qRange" min="10" max="100" value="75" step="5">
+        <span class="muted">100 = 不重压</span>
+      </div>
+      <div class="slider-row">
+        <label>中心裁切保留边长 <b id="cVal">50%</b></label>
+        <input type="range" id="cRange" min="15" max="100" value="50" step="5">
+        <span class="muted">100% = 不裁切</span>
+      </div>
+      <div class="attack-btns">
+        <button class="btn" id="applyAttack">生成受攻击图</button>
+        <button class="btn ghost" id="quickCrop50">快速：裁切 50%</button>
+        <button class="btn ghost" id="quickCropJpeg">快速：裁切 50% + JPEG60</button>
+      </div>
+    </div>
+    <div class="preview-row one hidden" id="attackPreview">
+      <figure>
+        <figcaption><span id="attackLabel">受攻击图</span>
+          <a id="dlVariant" class="dl" download>下载 PNG</a>
+        </figcaption>
+        <img id="variantImg" alt="受攻击图">
+      </figure>
+    </div>
+  </section>
+
+  <!-- ③ 检测 -->
+  <section class="card hidden" id="step3">
+    <h2><span class="num">3</span> 盲检测（自动定位同步块 · 多数表决恢复文本）</h2>
+    <div class="detect-controls">
+      <div class="seg" id="targetSeg">
+        <button type="button" data-v="watermarked" class="active">检测含水印原图</button>
+        <button type="button" data-v="variant">检测受攻击图</button>
+      </div>
+      <button class="btn primary" id="detectBtn">开始检测</button>
+    </div>
+
+    <div id="detectResult" class="hidden">
+      <div class="result-head">
+        <span id="detBadge" class="badge"></span>
+        <span id="detErr" class="det-err"></span>
+      </div>
+
+      <div class="recovered">
+        <span class="rc-label">恢复文本（逐字符置信度着色）：</span>
+        <div id="recoveredText" class="rc-text"></div>
+      </div>
+
+      <div class="meta-grid" id="detectMeta"></div>
+
+      <div class="confbar-wrap">
+        <div class="confbar"><div id="confFill" class="conf-fill"></div></div>
+        <span id="confText" class="conf-text"></span>
+      </div>
+
+      <div class="heatmap hidden" id="heatmapBlock">
+        <figure>
+          <figcaption>疑似失真区域热力图
+            <a id="dlHeat" class="dl" download>下载 PNG</a>
+          </figcaption>
+          <img id="heatImg" alt="失真热力图">
+        </figure>
+        <div class="legend">
+          <p><span class="sw sync"></span>同步块（定位网格用，约 30%）</p>
+          <p><span class="sw data"></span>数据块（颜色越实，表决差值越大）</p>
+          <p><span class="sw bad"></span>疑似失真：同步失配 / 表决弱 / 与多数不一致</p>
+          <p class="muted" id="strangeText"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>原理：8×8 块 DCT，比较 ZigZag 第 11/12 位中频系数大小承载 1 bit；
+       每 T×T 个块构成一个瓦片，固定 PRBS 同步块 + 重复数据块平铺整图；
+       检测端枚举 64 种像素网格偏移并以同步相关 + CRC 校验选锁，跨瓦片多数表决。</p>
+  </footer>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

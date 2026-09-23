@@ -1,0 +1,20 @@
+services:
+  watermark-bench:
+    build: .
+    image: crop-resistant-watermark:latest
+    container_name: watermark-bench
+    ports:
+      - "${HOST_PORT:-8000}:8000"
+    environment:
+      # 检测为 CPU 密集型；如需并发检测可调大 worker 数
+      WORKERS: "${WORKERS:-1}"
+      HOST: "0.0.0.0"
+      PORT: "8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 8s
